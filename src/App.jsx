@@ -143,7 +143,44 @@ async function dbSaveSongs(songs) {
   }
 }
 
-// Local cache fallback
+const CULTO_ROW_ID = 2; // row 2 = lista culto
+
+async function dbLoadCulto() {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/songs?id=eq.${CULTO_ROW_ID}&select=data`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    const rows = await res.json();
+    if (rows && rows[0]?.data) return rows[0].data;
+    return [];
+  } catch(e) {
+    console.error("Supabase culto load error:", e);
+    return [];
+  }
+}
+
+async function dbSaveCulto(culto) {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/songs`,
+      {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+          "Content-Type": "application/json",
+          "Prefer": "resolution=merge-duplicates,return=minimal"
+        },
+        body: JSON.stringify({ id: CULTO_ROW_ID, data: culto, updated_at: new Date().toISOString() })
+      }
+    );
+    return res.ok;
+  } catch(e) {
+    console.error("Supabase culto save error:", e);
+    return false;
+  }
+}
 const STORAGE_KEY = "ontherock_songs";
 function localLoad() {
   try {
@@ -917,7 +954,8 @@ function SetlistScreen({ songs, currentSongId, onSelect, onNewSong, onBack, isAd
         </div>
         <button
           className={`sl-culto-btn ${inCulto?"in":""}`}
-          onClick={()=>toggleCulto(song.id)}
+          onClick={isAdmin ? ()=>toggleCulto(song.id) : undefined}
+          style={!isAdmin ? {visibility:"hidden"} : {}}
           title={inCulto?"Quitar del culto":"Agregar al culto"}
         >{inCulto ? "✓" : "+"}</button>
       </div>
@@ -1027,9 +1065,11 @@ function SetlistScreen({ songs, currentSongId, onSelect, onNewSong, onBack, isAd
                   </div>
                 </div>
                 <div className="sl-culto-actions">
-                  <button className="sl-move-btn" onClick={()=>moveCulto(idx,-1)} disabled={idx===0}>↑</button>
-                  <button className="sl-move-btn" onClick={()=>moveCulto(idx,1)} disabled={idx===cultoSongs.length-1}>↓</button>
-                  <button className="sl-culto-btn in" onClick={()=>toggleCulto(song.id)}>✕</button>
+                  {isAdmin && <>
+                    <button className="sl-move-btn" onClick={()=>moveCulto(idx,-1)} disabled={idx===0}>↑</button>
+                    <button className="sl-move-btn" onClick={()=>moveCulto(idx,1)} disabled={idx===cultoSongs.length-1}>↓</button>
+                    <button className="sl-culto-btn in" onClick={()=>toggleCulto(song.id)}>✕</button>
+                  </>}
                 </div>
               </div>
             ))}
@@ -1350,9 +1390,7 @@ export default function App() {
   const [mode, setMode] = useState("view");
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState("idle");
-  const [culto, setCulto] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("otr_culto") || "[]"); } catch(e) { return []; }
-  });
+  const [culto, setCulto] = useState([]);
 
   const [isAdmin, setIsAdmin] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1412,7 +1450,7 @@ export default function App() {
     const remaining = songs.filter(s => s.id !== songId);
     if (remaining.length === 0) remaining.push(DEFAULT_SONG);
     updateAllSongs(remaining);
-    setCulto(c => { const updated = c.filter(id=>id!==songId); localStorage.setItem("otr_culto", JSON.stringify(updated)); return updated; });
+    setCulto(c => { const updated = c.filter(id=>id!==songId); dbSaveCulto(updated); return updated; });
     setCurrentSongId(remaining[0].id);
     setMode("view");
   }
@@ -1430,7 +1468,7 @@ export default function App() {
 
   function handleUpdateCulto(updated) {
     setCulto(updated);
-    localStorage.setItem("otr_culto", JSON.stringify(updated));
+    dbSaveCulto(updated);
   }
 
   if (loading) {
@@ -1528,7 +1566,7 @@ export default function App() {
 
   // Load from Supabase on mount
   useEffect(() => {
-    dbLoadSongs().then(data => {
+    Promise.all([dbLoadSongs(), dbLoadCulto()]).then(([data, cultoData]) => {
       if (data && data.length > 0) {
         setSongs(data);
         localSave(data);
@@ -1543,6 +1581,7 @@ export default function App() {
           setCurrentSongId(DEFAULT_SONG.id);
         }
       }
+      setCulto(cultoData || []);
       setLoading(false);
     });
   }, []);
