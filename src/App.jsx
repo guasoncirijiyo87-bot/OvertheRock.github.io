@@ -525,18 +525,78 @@ function AdminEditor({ song, onSave, onCancel, onImport, onDelete, syncStatus, a
 }
 
 // ─── Musician View ────────────────────────────────────────────────────────────
-function MusicianView({ song, onEdit, onSetlist, onPreview, onRevokeAdmin }) {
-  const [selectedKey, setSelectedKey] = useState(song.originalKey);
+const MY_KEYS_STORAGE = "otr_mykeys"; // {songId: "G", ...}
+
+function loadMyKeys() {
+  try { return JSON.parse(localStorage.getItem(MY_KEYS_STORAGE) || "{}"); } catch(e) { return {}; }
+}
+function saveMyKey(songId, key) {
+  const all = loadMyKeys();
+  all[songId] = key;
+  localStorage.setItem(MY_KEYS_STORAGE, JSON.stringify(all));
+}
+
+function MusicianView({ song, onEdit, onSetlist, onRevokeAdmin, culto, songs, onSelectSong }) {
+  const swipeRef = useRef(null);
+  const touchStartX = useRef(null);
+
+  // Determine initial key: myKey → adminKey → originalKey
+  function getInitialKey(songId) {
+    const myKeys = loadMyKeys();
+    if (myKeys[songId]) return myKeys[songId];
+    const entry = culto.find(e => (e?.id ?? e) === songId);
+    if (entry?.adminKey) return entry.adminKey;
+    return song.originalKey;
+  }
+
+  const [selectedKey, setSelectedKey] = useState(() => getInitialKey(song.id));
   const [useSpanish, setUseSpanish] = useState(true);
+  const [keySaved, setKeySaved] = useState(false);
+
+  // Reset key when song changes
+  useEffect(() => {
+    setSelectedKey(getInitialKey(song.id));
+    setKeySaved(false);
+  }, [song.id]);
 
   const semitones = getSemitones(song.originalKey, selectedKey);
   const displayKey = toDisplay(selectedKey, useSpanish);
   const originalDisplay = toDisplay(song.originalKey, useSpanish);
 
+  // Admin key for this song
+  const cultoEntry = culto.find(e => (e?.id ?? e) === song.id);
+  const adminKey = cultoEntry?.adminKey || null;
+
+  function handleSaveMyKey() {
+    saveMyKey(song.id, selectedKey);
+    setKeySaved(true);
+    setTimeout(() => setKeySaved(false), 2000);
+  }
+
+  // Navigation within lista culto
+  const cultoSongs = culto.map(e => songs.find(s => s.id === (e?.id ?? e))).filter(Boolean);
+  const cultoIdx = cultoSongs.findIndex(s => s.id === song.id);
+  const inCulto = cultoIdx !== -1;
+  const hasPrev = inCulto && cultoIdx > 0;
+  const hasNext = inCulto && cultoIdx < cultoSongs.length - 1;
+
+  function goPrev() { if (hasPrev) onSelectSong(cultoSongs[cultoIdx - 1].id); }
+  function goNext() { if (hasNext) onSelectSong(cultoSongs[cultoIdx + 1].id); }
+
+  function handleTouchStart(e) { touchStartX.current = e.touches[0].clientX; }
+  function handleTouchEnd(e) {
+    if (touchStartX.current === null) return;
+    const diff = touchStartX.current - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 60) {
+      if (diff > 0) goNext();
+      else goPrev();
+    }
+    touchStartX.current = null;
+  }
+
   function renderLine(line) {
     const chords = [...(line.chords||[])].sort((a,b)=>a.pos-b.pos);
     if (!chords.length) return null;
-
     const spans = [];
     let cursor = 0;
     for (const c of chords) {
@@ -545,7 +605,6 @@ function MusicianView({ song, onEdit, onSetlist, onPreview, onRevokeAdmin }) {
       spans.push({ type:"chord", text: displayed });
       cursor = c.pos + displayed.length;
     }
-
     return (
       <div className="mv-chord-row">
         {spans.map((s,i) =>
@@ -558,7 +617,12 @@ function MusicianView({ song, onEdit, onSetlist, onPreview, onRevokeAdmin }) {
   }
 
   return (
-    <div className="mv-root">
+    <div
+      className="mv-root"
+      ref={swipeRef}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       <style>{CSS_MV}</style>
 
       <header className="mv-header">
@@ -572,34 +636,55 @@ function MusicianView({ song, onEdit, onSetlist, onPreview, onRevokeAdmin }) {
               {useSpanish?"ES":"EN"}
             </button>
             <button className="mv-toggle list-btn" onClick={onSetlist}>☰</button>
-            {onEdit && (
-              <button className="mv-toggle edit-btn" onClick={onEdit} title="Editor">✎</button>
-            )}
-            {onRevokeAdmin && (
-              <button className="mv-toggle revoke-btn" onClick={onRevokeAdmin} title="Salir de admin">🔓</button>
-            )}
+            {onEdit && <button className="mv-toggle edit-btn" onClick={onEdit}>✎</button>}
+            {onRevokeAdmin && <button className="mv-toggle revoke-btn" onClick={onRevokeAdmin}>🔓</button>}
           </div>
         </div>
       </header>
 
+      {/* Hero */}
       <div className="mv-song-hero">
         <div className="mv-song-hero-bg" />
         <div className="mv-song-hero-inner">
+          {inCulto && (
+            <div className="mv-culto-indicator">
+              Lista culto · {cultoIdx + 1} de {cultoSongs.length}
+            </div>
+          )}
           <div className="mv-song-title">{song.title}</div>
           <div className="mv-song-meta">
             <span className="mv-meta-chip">{song.bpm} BPM</span>
-            <span className="mv-original-chip">Tono original: {originalDisplay}</span>
+            <span className="mv-original-chip">Original: {originalDisplay}</span>
+            {adminKey && (
+              <span className="mv-admin-key-chip">
+                Culto: {toDisplay(adminKey, useSpanish)}
+              </span>
+            )}
+            {song.categoria && (
+              <span className={`mv-cat-chip ${song.categoria}`}>
+                {song.categoria === "alabanza" ? "Alabanza" : "Adoración"}
+              </span>
+            )}
           </div>
         </div>
       </div>
 
+      {/* Key selector */}
       <div className="mv-key-wrap">
-        <div className="mv-key-label">Tu tonalidad</div>
+        <div className="mv-key-label-row">
+          <span className="mv-key-label">Tu tonalidad</span>
+          <button
+            className={`mv-save-key-btn ${keySaved?"saved":""}`}
+            onClick={handleSaveMyKey}
+          >
+            {keySaved ? "✓ Guardado" : "Guardar mi tono"}
+          </button>
+        </div>
         <div className="mv-key-grid">
           {ALL_KEYS.map(k=>(
             <button
               key={k}
-              className={`mv-key-btn ${selectedKey===k?"selected":""}`}
+              className={`mv-key-btn ${selectedKey===k?"selected":""} ${adminKey===k&&selectedKey!==k?"admin-key":""}`}
               onClick={()=>setSelectedKey(k)}
             >
               {toDisplay(k,useSpanish)}
@@ -615,6 +700,7 @@ function MusicianView({ song, onEdit, onSetlist, onPreview, onRevokeAdmin }) {
         </div>
       </div>
 
+      {/* Sections */}
       <div className="mv-sections">
         {song.sections.map(section=>(
           <div key={section.id} className="mv-section-card">
@@ -630,6 +716,23 @@ function MusicianView({ song, onEdit, onSetlist, onPreview, onRevokeAdmin }) {
           </div>
         ))}
       </div>
+
+      {/* Prev / Next navigation */}
+      {inCulto && (
+        <div className="mv-nav">
+          <button className={`mv-nav-btn ${!hasPrev?"disabled":""}`} onClick={goPrev} disabled={!hasPrev}>
+            ← {hasPrev ? cultoSongs[cultoIdx-1].title : "Inicio"}
+          </button>
+          <div className="mv-nav-dots">
+            {cultoSongs.map((s,i)=>(
+              <div key={s.id} className={`mv-nav-dot ${i===cultoIdx?"active":""}`} onClick={()=>onSelectSong(s.id)} />
+            ))}
+          </div>
+          <button className={`mv-nav-btn next ${!hasNext?"disabled":""}`} onClick={goNext} disabled={!hasNext}>
+            {hasNext ? cultoSongs[cultoIdx+1].title : "Fin"} →
+          </button>
+        </div>
+      )}
 
       <div className="mv-footer"><span>✝</span> On The Rock · Worship Band</div>
     </div>
@@ -912,18 +1015,23 @@ function ImportScreen({ onImport, onSkip }) {
 }
 
 // ─── Setlist Screen ───────────────────────────────────────────────────────────
-function SetlistScreen({ songs, currentSongId, onSelect, onNewSong, onBack, isAdmin, onUpdateSongs, culto, onUpdateCulto }) {
-  const [tab, setTab] = useState("todas"); // "todas" | "culto"
-  const [filter, setFilter] = useState("todas"); // "todas" | "alabanza" | "adoracion"
+function SetlistScreen({ songs, currentSongId, onSelect, onNewSong, onBack, isAdmin, onUpdateSongs, culto, onUpdateCulto, onSetAdminKey }) {
+  const [tab, setTab] = useState("todas");
+  const [filter, setFilter] = useState("todas");
 
   const alabanzas = songs.filter(s => s.categoria === "alabanza");
   const adoracion = songs.filter(s => s.categoria === "adoracion");
   const sinCategoria = songs.filter(s => !s.categoria);
 
+  // culto is now [{id, adminKey}, ...] — helpers normalize old format [id,...]
+  function cultoId(entry) { return entry?.id ?? entry; }
+  function cultoEntry(songId) { return culto.find(e => cultoId(e) === songId) || null; }
+
   function toggleCulto(songId) {
-    const updated = culto.includes(songId)
-      ? culto.filter(id => id !== songId)
-      : [...culto, songId];
+    const inCulto = culto.some(e => cultoId(e) === songId);
+    const updated = inCulto
+      ? culto.filter(e => cultoId(e) !== songId)
+      : [...culto, { id: songId, adminKey: songs.find(s=>s.id===songId)?.originalKey || "G" }];
     onUpdateCulto(updated);
   }
 
@@ -935,10 +1043,10 @@ function SetlistScreen({ songs, currentSongId, onSelect, onNewSong, onBack, isAd
     onUpdateCulto(updated);
   }
 
-  const cultoSongs = culto.map(id => songs.find(s => s.id === id)).filter(Boolean);
+  const cultoSongs = culto.map(e => songs.find(s => s.id === cultoId(e))).filter(Boolean);
 
   function renderSongCard(song) {
-    const inCulto = culto.includes(song.id);
+    const inCulto = culto.some(e => cultoId(e) === song.id);
     return (
       <div key={song.id} className={`sl-song-card ${currentSongId===song.id?"active":""}`}>
         <div className="sl-song-main" onClick={()=>onSelect(song.id)}>
@@ -1050,29 +1158,53 @@ function SetlistScreen({ songs, currentSongId, onSelect, onNewSong, onBack, isAd
                 Andá a "Todas" y tocá <strong>+</strong> en cada canción para agregarla al culto.
               </div>
             )}
-            {cultoSongs.map((song, idx) => (
-              <div key={song.id} className={`sl-song-card ${currentSongId===song.id?"active":""}`}>
-                <div className="sl-culto-order">{idx+1}</div>
-                <div className="sl-song-main" onClick={()=>onSelect(song.id)}>
-                  <div className="sl-song-title">{song.title}</div>
-                  <div className="sl-song-meta">
-                    {song.originalKey} / {EN_TO_ES[song.originalKey]} · {song.bpm} BPM
-                    {song.categoria && (
-                      <span className={`sl-cat-badge ${song.categoria}`}>
-                        {song.categoria === "alabanza" ? "Alabanza" : "Adoración"}
-                      </span>
+            {cultoSongs.map((song, idx) => {
+              const entry = culto.find(e => (e.id||e) === song.id) || {};
+              const adminKey = entry.adminKey || song.originalKey;
+              return (
+                <div key={song.id} className={`sl-song-card ${currentSongId===song.id?"active":""}`}>
+                  <div className="sl-culto-order">{idx+1}</div>
+                  <div className="sl-song-main" onClick={()=>onSelect(song.id)}>
+                    <div className="sl-song-title">{song.title}</div>
+                    <div className="sl-song-meta">
+                      Orig: {song.originalKey}
+                      {song.categoria && (
+                        <span className={`sl-cat-badge ${song.categoria}`}>
+                          {song.categoria === "alabanza" ? "Alabanza" : "Adoración"}
+                        </span>
+                      )}
+                    </div>
+                    {/* Admin key selector */}
+                    {isAdmin && (
+                      <div className="sl-key-row" onClick={e=>e.stopPropagation()}>
+                        <span className="sl-key-label">Tono culto:</span>
+                        <div className="sl-key-btns">
+                          {ALL_KEYS.map(k=>(
+                            <button
+                              key={k}
+                              className={`sl-key-btn ${adminKey===k?"sel":""}`}
+                              onClick={()=>onSetAdminKey(song.id, k)}
+                            >{k}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {!isAdmin && (
+                      <div className="sl-key-display">
+                        Tono culto: <strong>{adminKey}</strong> / {EN_TO_ES[adminKey]||adminKey}
+                      </div>
                     )}
                   </div>
+                  <div className="sl-culto-actions">
+                    {isAdmin && <>
+                      <button className="sl-move-btn" onClick={()=>moveCulto(idx,-1)} disabled={idx===0}>↑</button>
+                      <button className="sl-move-btn" onClick={()=>moveCulto(idx,1)} disabled={idx===cultoSongs.length-1}>↓</button>
+                      <button className="sl-culto-btn in" onClick={()=>toggleCulto(song.id)}>✕</button>
+                    </>}
+                  </div>
                 </div>
-                <div className="sl-culto-actions">
-                  {isAdmin && <>
-                    <button className="sl-move-btn" onClick={()=>moveCulto(idx,-1)} disabled={idx===0}>↑</button>
-                    <button className="sl-move-btn" onClick={()=>moveCulto(idx,1)} disabled={idx===cultoSongs.length-1}>↓</button>
-                    <button className="sl-culto-btn in" onClick={()=>toggleCulto(song.id)}>✕</button>
-                  </>}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -1466,6 +1598,14 @@ export default function App() {
     setMode("view");
   }
 
+  function handleSetAdminKey(songId, key) {
+    const updated = culto.map(e =>
+      (e?.id ?? e) === songId ? { id: songId, adminKey: key } : e
+    );
+    setCulto(updated);
+    dbSaveCulto(updated);
+  }
+
   function handleUpdateCulto(updated) {
     setCulto(updated);
     dbSaveCulto(updated);
@@ -1530,6 +1670,7 @@ export default function App() {
         isAdmin={isAdmin}
         culto={culto}
         onUpdateCulto={handleUpdateCulto}
+        onSetAdminKey={handleSetAdminKey}
       />
     );
   }
@@ -1537,6 +1678,9 @@ export default function App() {
   return (
     <MusicianView
       song={currentSong}
+      songs={songs}
+      culto={culto}
+      onSelectSong={handleSelectSong}
       onEdit={isAdmin ? () => setMode("edit") : null}
       onSetlist={() => setMode("setlist")}
       onRevokeAdmin={isAdmin ? handleRevokeAdmin : null}
@@ -1818,8 +1962,36 @@ body{background:#0D0D0D;color:#DDD;}
 }
 .mv-key-label{
   font-size:9px;font-weight:700;letter-spacing:0.14em;
-  text-transform:uppercase;color:#444;margin-bottom:10px;
+  text-transform:uppercase;color:#444;
 }
+.mv-key-label-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.mv-save-key-btn{
+  font-family:'Barlow',sans-serif;font-size:11px;font-weight:700;
+  letter-spacing:0.05em;text-transform:uppercase;
+  background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
+  color:#666;padding:5px 12px;border-radius:20px;cursor:pointer;transition:all 0.2s;
+}
+.mv-save-key-btn:hover{border-color:rgba(52,211,153,0.4);color:#34D399;}
+.mv-save-key-btn.saved{background:rgba(52,211,153,0.1);border-color:rgba(52,211,153,0.4);color:#34D399;}
+.mv-admin-key-chip{
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  background:rgba(232,73,122,0.1);border:1px solid rgba(232,73,122,0.25);
+  padding:4px 10px;border-radius:20px;color:#E8497A;
+}
+.mv-key-btn.admin-key{border-color:rgba(232,73,122,0.4);color:#E8497A;}
+/* Setlist key selector */
+.sl-key-row{margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.sl-key-label{font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#555;white-space:nowrap;}
+.sl-key-btns{display:flex;flex-wrap:wrap;gap:4px;}
+.sl-key-btn{
+  font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;
+  background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);
+  color:#555;padding:4px 7px;border-radius:5px;cursor:pointer;transition:all 0.12s;
+}
+.sl-key-btn:hover{border-color:rgba(255,255,255,0.15);color:#AAA;}
+.sl-key-btn.sel{background:rgba(232,73,122,0.2);border-color:rgba(232,73,122,0.5);color:#E8497A;}
+.sl-key-display{margin-top:6px;font-size:11px;color:#666;}
+.sl-key-display strong{color:#E8497A;}
 .mv-key-grid{
   display:grid;grid-template-columns:repeat(6,1fr);gap:6px;
   margin-bottom:14px;
@@ -1909,8 +2081,56 @@ body{background:#0D0D0D;color:#DDD;}
 }
 .mv-gap{color:transparent;display:inline;pointer-events:none;user-select:none;}
 
-/* ── Footer ── */
-.mv-footer{
+.mv-culto-indicator{
+  font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;
+  letter-spacing:0.1em;text-transform:uppercase;
+  color:#34D399;background:rgba(52,211,153,0.1);
+  border:1px solid rgba(52,211,153,0.25);
+  padding:3px 10px;border-radius:20px;
+  display:inline-block;margin-bottom:10px;
+}
+.mv-cat-chip{
+  font-family:'Barlow',sans-serif;font-size:10px;font-weight:700;
+  letter-spacing:0.06em;text-transform:uppercase;
+  padding:3px 8px;border-radius:20px;
+}
+.mv-cat-chip.alabanza{background:rgba(91,184,245,0.1);color:#5BB8F5;border:1px solid rgba(91,184,245,0.2);}
+.mv-cat-chip.adoracion{background:rgba(167,139,250,0.1);color:#A78BFA;border:1px solid rgba(167,139,250,0.2);}
+
+/* ── Navigation bar ── */
+.mv-nav{
+  max-width:760px;margin:8px auto 0;padding:0 20px 32px;
+  display:flex;align-items:center;gap:12px;
+}
+.mv-nav-btn{
+  flex:1;
+  font-family:'Barlow',sans-serif;font-size:12px;font-weight:700;
+  background:rgba(255,255,255,0.03);
+  border:1px solid rgba(255,255,255,0.07);
+  color:#888;padding:12px 10px;border-radius:10px;
+  cursor:pointer;transition:all 0.15s;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  max-width:40%;
+}
+.mv-nav-btn:hover:not(.disabled){
+  background:rgba(91,184,245,0.08);
+  border-color:rgba(91,184,245,0.3);
+  color:#5BB8F5;
+}
+.mv-nav-btn.next{text-align:right;}
+.mv-nav-btn.disabled{opacity:0.25;cursor:not-allowed;}
+.mv-nav-dots{
+  flex:1;display:flex;justify-content:center;gap:6px;flex-wrap:wrap;
+}
+.mv-nav-dot{
+  width:7px;height:7px;border-radius:50%;
+  background:rgba(255,255,255,0.12);
+  cursor:pointer;transition:all 0.15s;flex-shrink:0;
+}
+.mv-nav-dot.active{
+  background:#5BB8F5;
+  box-shadow:0 0 6px rgba(91,184,245,0.5);
+}
   max-width:760px;margin:0 auto;padding:20px;
   text-align:center;font-size:10px;color:#2A2A2A;
   letter-spacing:0.1em;text-transform:uppercase;font-weight:700;
