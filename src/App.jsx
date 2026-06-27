@@ -100,24 +100,56 @@ const DEFAULT_SONG = {
   ]
 };
 
-// ─── Storage ──────────────────────────────────────────────────────────────────
-const STORAGE_KEY = "overtherock_songs";
+// ─── Supabase ─────────────────────────────────────────────────────────────────
+const SUPABASE_URL = "https://xvanqrpgmfxuavljisrr.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2YW5xcnBnbWZ4dWF2bGppc3JyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1MDEyMzAsImV4cCI6MjA5ODA3NzIzMH0._xmAvIsourU0pwXOmWqrXN3Ze_FrS-LIMMygs7fXNEE";
+const SONGS_ROW_ID = 1; // single row that holds all songs as JSON array
 
-function loadSongs() {
+async function dbLoadSongs() {
   try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [DEFAULT_SONG];
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/songs?id=eq.${SONGS_ROW_ID}&select=data`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    const rows = await res.json();
+    if (rows && rows[0]?.data) return rows[0].data;
+    return null;
   } catch(e) {
-    return [DEFAULT_SONG];
+    console.error("Supabase load error:", e);
+    return null;
   }
 }
 
-function saveSongs(songs) {
+async function dbSaveSongs(songs) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(songs));
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/songs`,
+      {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+          "Content-Type": "application/json",
+          "Prefer": "resolution=merge-duplicates"
+        },
+        body: JSON.stringify({ id: SONGS_ROW_ID, data: songs, updated_at: new Date().toISOString() })
+      }
+    );
   } catch(e) {
-    console.error("Storage error:", e);
+    console.error("Supabase save error:", e);
   }
+}
+
+// Local cache fallback
+const STORAGE_KEY = "ontherock_songs";
+function localLoad() {
+  try {
+    const d = localStorage.getItem(STORAGE_KEY);
+    return d ? JSON.parse(d) : null;
+  } catch(e) { return null; }
+}
+function localSave(songs) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(songs)); } catch(e) {}
 }
 
 // ─── Chord Grid Editor ────────────────────────────────────────────────────────
@@ -255,7 +287,7 @@ function ChordGridLine({ line, lineIdx, onUpdate, onDelete, onAddLine }) {
 }
 
 // ─── Admin Editor ─────────────────────────────────────────────────────────────
-function AdminEditor({ song, onSave, onCancel, onImport, onDelete }) {
+function AdminEditor({ song, onSave, onCancel, onImport, onDelete, syncStatus, appName }) {
   const [draft, setDraft] = useState(JSON.parse(JSON.stringify(song)));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -356,6 +388,9 @@ function AdminEditor({ song, onSave, onCancel, onImport, onDelete }) {
         <div className="admin-topbar-left">
           <span className="admin-tag">✎ EDITOR</span>
           <span className="admin-song-name">{draft.title||"Sin título"}</span>
+          {syncStatus==="saving" && <span className="sync-badge saving">↑ Guardando...</span>}
+          {syncStatus==="saved"  && <span className="sync-badge saved">✓ Guardado</span>}
+          {syncStatus==="error"  && <span className="sync-badge error">✕ Error</span>}
         </div>
         <div className="admin-topbar-right">
           {onImport && <button className="abtn abtn-import" onClick={onImport}>⬇ Importar</button>}
@@ -490,7 +525,7 @@ function MusicianView({ song, onEdit, onSetlist, onPreview, onRevokeAdmin }) {
         <div className="mv-header-inner">
           <div className="mv-brand">
             <span className="mv-cross">✝</span>
-            <span className="mv-brand-name">Over The Rock</span>
+            <span className="mv-brand-name">On The Rock</span>
           </div>
           <div className="mv-header-actions">
             <button className={`mv-toggle ${useSpanish?"active":""}`} onClick={()=>setUseSpanish(v=>!v)}>
@@ -557,7 +592,7 @@ function MusicianView({ song, onEdit, onSetlist, onPreview, onRevokeAdmin }) {
         ))}
       </div>
 
-      <div className="mv-footer"><span>✝</span> Over The Rock · Worship Band</div>
+      <div className="mv-footer"><span>✝</span> On The Rock · Worship Band</div>
     </div>
   );
 }
@@ -733,7 +768,7 @@ function ImportScreen({ onImport, onSkip }) {
       <div className="imp-topbar">
         <div className="imp-topbar-left">
           <span className="imp-cross">✝</span>
-          <span className="imp-brand">Over The Rock</span>
+          <span className="imp-brand">On The Rock</span>
           <span className="imp-tag">IMPORTAR</span>
         </div>
         <button className="imp-skip" onClick={onSkip}>Editar manualmente →</button>
@@ -931,7 +966,7 @@ function MobilePreview({ song, onClose }) {
           {/* Mini header */}
           <div className="phone-header">
             <span className="phone-cross">✝</span>
-            <span className="phone-brand">Over The Rock</span>
+            <span className="phone-brand">On The Rock</span>
           </div>
 
           {/* Scrollable content */}
@@ -981,7 +1016,7 @@ function MobilePreview({ song, onClose }) {
               ))}
             </div>
 
-            <div className="phone-footer">✝ Over The Rock</div>
+            <div className="phone-footer">✝ On The Rock</div>
           </div>
 
           {/* Home indicator */}
@@ -1177,31 +1212,57 @@ const CSS_PHONE = `
 `;
 
 // ─── Root App ─────────────────────────────────────────────────────────────────
-const ADMIN_TOKEN = "otr2024admin"; // ← cambiá esto por tu token secreto
+const ADMIN_TOKEN = "otr2024admin";
+const APP_NAME = "On The Rock";
 
 export default function App() {
-  const [songs, setSongs] = useState(() => loadSongs());
-  const [currentSongId, setCurrentSongId] = useState(songs[0]?.id || DEFAULT_SONG.id);
+  const [songs, setSongs] = useState(() => localLoad() || [DEFAULT_SONG]);
+  const [currentSongId, setCurrentSongId] = useState(null);
   const [mode, setMode] = useState("view");
+  const [loading, setLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState("idle"); // "idle"|"saving"|"saved"|"error"
+
   const [isAdmin, setIsAdmin] = useState(() => {
-    // Check token in URL first
     const params = new URLSearchParams(window.location.search);
     const token = params.get("admin");
     if (token === ADMIN_TOKEN) {
       localStorage.setItem("otr_admin", "true");
-      // Clean URL — remove token from address bar
       window.history.replaceState({}, "", window.location.pathname);
       return true;
     }
-    // Check if already authenticated on this device
     return localStorage.getItem("otr_admin") === "true";
   });
 
+  // Load from Supabase on mount
+  useEffect(() => {
+    dbLoadSongs().then(data => {
+      if (data && data.length > 0) {
+        setSongs(data);
+        localSave(data);
+        setCurrentSongId(data[0].id);
+      } else {
+        const cached = localLoad();
+        if (cached && cached.length > 0) {
+          setSongs(cached);
+          setCurrentSongId(cached[0].id);
+        } else {
+          setSongs([DEFAULT_SONG]);
+          setCurrentSongId(DEFAULT_SONG.id);
+        }
+      }
+      setLoading(false);
+    });
+  }, []);
+
   const currentSong = songs.find(s => s.id === currentSongId) || songs[0] || DEFAULT_SONG;
 
-  function updateAllSongs(updated) {
-    saveSongs(updated);
+  async function updateAllSongs(updated) {
     setSongs(updated);
+    localSave(updated);
+    setSyncStatus("saving");
+    await dbSaveSongs(updated);
+    setSyncStatus("saved");
+    setTimeout(() => setSyncStatus("idle"), 2000);
   }
 
   function handleSave(updated) {
@@ -1210,7 +1271,8 @@ export default function App() {
   }
 
   function handleImport(parsed) {
-    updateAllSongs([...songs, parsed]);
+    const updated = [...songs, parsed];
+    updateAllSongs(updated);
     setCurrentSongId(parsed.id);
     setMode("edit");
   }
@@ -1234,11 +1296,29 @@ export default function App() {
     setMode("view");
   }
 
+  // Loading screen
+  if (loading) {
+    return (
+      <div style={{
+        minHeight:"100vh", background:"#080808",
+        display:"flex", flexDirection:"column",
+        alignItems:"center", justifyContent:"center", gap:16
+      }}>
+        <div style={{fontSize:28, color:"#5BB8F5", filter:"drop-shadow(0 0 10px rgba(91,184,245,0.5))"}}>✝</div>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif", fontSize:18, fontWeight:800,
+          letterSpacing:"0.14em", textTransform:"uppercase", color:"#FFF"}}>{APP_NAME}</div>
+        <div style={{width:40, height:2, background:"rgba(91,184,245,0.3)", borderRadius:2,
+          animation:"pulse 1s infinite alternate"}} />
+        <style>{`@keyframes pulse{from{opacity:0.3}to{opacity:1}}`}</style>
+      </div>
+    );
+  }
+
   if (mode === "import" && isAdmin) {
-    return <ImportScreen onImport={handleImport} onSkip={() => setMode("edit")} />;
+    return <ImportScreen onImport={handleImport} onSkip={() => setMode("edit")} appName={APP_NAME} />;
   }
   if (mode === "preview") {
-    return <MobilePreview song={currentSong} onClose={() => setMode("view")} />;
+    return <MobilePreview song={currentSong} onClose={() => setMode("view")} appName={APP_NAME} />;
   }
   if (mode === "edit" && isAdmin) {
     return (
@@ -1248,6 +1328,8 @@ export default function App() {
         onCancel={() => setMode("view")}
         onImport={() => setMode("import")}
         onDelete={handleDelete}
+        syncStatus={syncStatus}
+        appName={APP_NAME}
       />
     );
   }
@@ -1274,6 +1356,7 @@ export default function App() {
         }}
         onBack={() => setMode("view")}
         isAdmin={isAdmin}
+        appName={APP_NAME}
       />
     );
   }
@@ -1285,6 +1368,8 @@ export default function App() {
       onSetlist={() => setMode("setlist")}
       onPreview={() => setMode("preview")}
       onRevokeAdmin={isAdmin ? handleRevokeAdmin : null}
+      syncStatus={syncStatus}
+      appName={APP_NAME}
     />
   );
 }
@@ -1520,6 +1605,10 @@ const CSS_ADMIN = `
 .admin-topbar-left{display:flex;align-items:center;gap:12px;}
 .admin-tag{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:#34D399;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);padding:3px 8px;border-radius:4px;}
 .admin-song-name{font-size:16px;font-weight:600;}
+.sync-badge{font-size:10px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;}
+.sync-badge.saving{color:#F59E0B;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);}
+.sync-badge.saved{color:#34D399;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);}
+.sync-badge.error{color:#E8497A;background:rgba(232,73,122,0.1);border:1px solid rgba(232,73,122,0.3);}
 .admin-topbar-right{display:flex;gap:8px;align-items:center;}
 .abtn{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;background:transparent;border:1px solid #2A2A2A;color:#666;padding:6px 12px;border-radius:6px;cursor:pointer;transition:all 0.15s;}
 .abtn:hover{border-color:#444;color:#BBB;}
