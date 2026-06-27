@@ -812,7 +812,7 @@ function parsePastedSong(raw) {
       continue;
     }
 
-    if (!currentSection) newSection("ESTROFA");
+    if (!currentSection) continue; // skip lines before first section header
 
     const hasChords = /\[[^\]]+\]/.test(line);
 
@@ -876,11 +876,11 @@ Coro
 Puente
 [Em]Línea del [G]puente`;
 
-function ImportScreen({ onImport, onSkip }) {
+function ImportScreen({ onImport, onSkip, initialCategoria }) {
   const [text, setText] = useState("");
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState("");
-  const [categoria, setCategoria] = useState("alabanza");
+  const [categoria, setCategoria] = useState(initialCategoria || "alabanza");
 
   function handleParse() {
     if (!text.trim()) { setError("Pegá el texto primero."); return; }
@@ -1537,6 +1537,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState("idle");
   const [culto, setCulto] = useState([]);
+  const [pendingCategoria, setPendingCategoria] = useState("alabanza");
 
   const [isAdmin, setIsAdmin] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1643,7 +1644,7 @@ export default function App() {
   }
 
   if (mode === "import" && isAdmin) {
-    return <ImportScreen onImport={handleImport} onSkip={() => setMode("edit")} appName={APP_NAME} />;
+    return <ImportScreen onImport={handleImport} onSkip={() => setMode("edit")} appName={APP_NAME} initialCategoria={pendingCategoria} />;
   }
   if (mode === "edit" && isAdmin) {
     return (
@@ -1666,19 +1667,8 @@ export default function App() {
         onSelect={handleSelectSong}
         onNewSong={(categoria) => {
           if (!isAdmin) { setMode("view"); return; }
-          const newSong = {
-            id: Date.now(),
-            title: "Nueva canción",
-            originalKey: "G",
-            bpm: 72,
-            categoria: categoria || null,
-            sections: [
-              { id:"s"+Date.now(), label:"ESTROFA", color:"#E8497A", lines:[{chords:[],lyric:""}] }
-            ]
-          };
-          updateAllSongs([...songs, newSong]);
-          setCurrentSongId(newSong.id);
-          setMode("edit");
+          setPendingCategoria(categoria);
+          setMode("import");
         }}
         onBack={() => setMode("view")}
         isAdmin={isAdmin}
