@@ -880,6 +880,7 @@ function ImportScreen({ onImport, onSkip }) {
   const [text, setText] = useState("");
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState("");
+  const [categoria, setCategoria] = useState("alabanza");
 
   function handleParse() {
     if (!text.trim()) { setError("Pegá el texto primero."); return; }
@@ -897,7 +898,7 @@ function ImportScreen({ onImport, onSkip }) {
   }
 
   function handleConfirm() {
-    if (preview) onImport(preview);
+    if (preview) onImport({ ...preview, categoria });
   }
 
   return (
@@ -1000,12 +1001,25 @@ function ImportScreen({ onImport, onSkip }) {
             </div>
 
             <div className="imp-confirm-row">
-              <button className="imp-btn-confirm" onClick={handleConfirm}>
-                Usar esta canción → Abrir en editor
-              </button>
-              <button className="imp-btn-reparse" onClick={()=>setPreview(null)}>
-                ← Volver a editar texto
-              </button>
+              <div className="imp-cat-selector">
+                <span className="imp-cat-label">Categoría:</span>
+                <button
+                  className={`imp-cat-btn ${categoria==="alabanza"?"active":""}`}
+                  onClick={()=>setCategoria("alabanza")}
+                >🎵 Alabanza</button>
+                <button
+                  className={`imp-cat-btn ${categoria==="adoracion"?"active adoracion":""}`}
+                  onClick={()=>setCategoria("adoracion")}
+                >🕊 Adoración</button>
+              </div>
+              <div className="imp-confirm-actions">
+                <button className="imp-btn-confirm" onClick={handleConfirm}>
+                  Usar esta canción → Abrir en editor
+                </button>
+                <button className="imp-btn-reparse" onClick={()=>setPreview(null)}>
+                  ← Volver
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -2126,7 +2140,13 @@ const CSS_IMPORT = `
 .imp-prev-chord{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#5BB8F5;background:rgba(91,184,245,0.1);padding:1px 5px;border-radius:3px;}
 .imp-prev-nochord{font-size:11px;color:#333;}
 .imp-prev-lyric{font-size:13px;color:#B0B0B0;}
-.imp-confirm-row{padding:14px 20px;border-top:1px solid #1E1E1E;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.imp-confirm-row{padding:14px 20px;border-top:1px solid #1E1E1E;display:flex;flex-direction:column;gap:12px;}
+.imp-cat-selector{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.imp-cat-label{font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#555;}
+.imp-cat-btn{font-family:'Barlow',sans-serif;font-size:12px;font-weight:700;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#666;padding:7px 14px;border-radius:8px;cursor:pointer;transition:all 0.15s;}
+.imp-cat-btn.active{background:rgba(91,184,245,0.15);border-color:rgba(91,184,245,0.4);color:#5BB8F5;}
+.imp-cat-btn.active.adoracion{background:rgba(167,139,250,0.15);border-color:rgba(167,139,250,0.4);color:#A78BFA;}
+.imp-confirm-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
 .imp-btn-confirm{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;background:#34D399;color:#000;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;transition:all 0.15s;}
 .imp-btn-confirm:hover{background:#3EF0A8;}
 .imp-btn-reparse{font-family:'Barlow',sans-serif;font-size:12px;font-weight:600;background:transparent;border:1px solid #2A2A2A;color:#666;padding:8px 14px;border-radius:6px;cursor:pointer;transition:all 0.15s;}
@@ -2252,4 +2272,3 @@ const CSS_SETLIST = `
 .sl-move-btn:hover{color:#CCC;border-color:rgba(255,255,255,0.2);}
 .sl-move-btn:disabled{opacity:0.2;cursor:not-allowed;}
 `;
-
