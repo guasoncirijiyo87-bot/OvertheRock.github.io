@@ -122,7 +122,7 @@ async function dbLoadSongs() {
 
 async function dbSaveSongs(songs) {
   try {
-    await fetch(
+    const res = await fetch(
       `${SUPABASE_URL}/rest/v1/songs`,
       {
         method: "POST",
@@ -130,13 +130,16 @@ async function dbSaveSongs(songs) {
           apikey: SUPABASE_KEY,
           Authorization: `Bearer ${SUPABASE_KEY}`,
           "Content-Type": "application/json",
-          "Prefer": "resolution=merge-duplicates"
+          "Prefer": "resolution=merge-duplicates,return=minimal"
         },
         body: JSON.stringify({ id: SONGS_ROW_ID, data: songs, updated_at: new Date().toISOString() })
       }
     );
+    if (!res.ok) throw new Error(await res.text());
+    return true;
   } catch(e) {
     console.error("Supabase save error:", e);
+    return false;
   }
 }
 
@@ -532,7 +535,6 @@ function MusicianView({ song, onEdit, onSetlist, onPreview, onRevokeAdmin }) {
               {useSpanish?"ES":"EN"}
             </button>
             <button className="mv-toggle list-btn" onClick={onSetlist}>☰</button>
-            <button className="mv-toggle preview-btn" onClick={onPreview} title="Vista móvil">📱</button>
             {onEdit && (
               <button className="mv-toggle edit-btn" onClick={onEdit} title="Editor">✎</button>
             )}
@@ -1260,9 +1262,9 @@ export default function App() {
     setSongs(updated);
     localSave(updated);
     setSyncStatus("saving");
-    await dbSaveSongs(updated);
-    setSyncStatus("saved");
-    setTimeout(() => setSyncStatus("idle"), 2000);
+    const ok = await dbSaveSongs(updated);
+    setSyncStatus(ok ? "saved" : "error");
+    setTimeout(() => setSyncStatus("idle"), 2500);
   }
 
   function handleSave(updated) {
