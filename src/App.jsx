@@ -1526,6 +1526,184 @@ const CSS_PHONE = `
 }
 `;
 
+// ─── Splash Screen ────────────────────────────────────────────────────────────
+const SPLASH_THEMES = [
+  // [bg_top, bg_bot, text_col, accent]
+  ["#080C23", "#005AB4", "#FF1E78", "#5BB8F5"],  // Alpine A — azul oscuro → celeste
+  ["#F0F0F8", "#5BB8F5", "#FF1E78", "#005AB4"],  // Alpine B — blanco → celeste
+  ["#5BB8F5", "#003C8C", "#FF1E78", "#FFFFFF"],  // Alpine C — celeste → azul
+  ["#081450", "#6CACE4", "#FFD700", "#FFFFFF"],  // ARG A — azul → celeste
+  ["#FFFFFF", "#6CACE4", "#FFD700", "#081450"],  // ARG B — blanco → celeste
+  ["#6CACE4", "#081450", "#FFD700", "#FFFFFF"],  // ARG C — celeste → azul
+];
+
+function SplashScreen() {
+  const [themeIdx] = useState(() => {
+    const saved = parseInt(localStorage.getItem("otr_theme") || "0");
+    const next  = (saved + 1) % SPLASH_THEMES.length;
+    localStorage.setItem("otr_theme", String(next));
+    return saved;
+  });
+
+  const [bgTop, bgBot, textCol, accent] = SPLASH_THEMES[themeIdx];
+  const isDark = bgTop !== "#F0F0F8" && bgTop !== "#FFFFFF";
+
+  // Rock SVG path — trapezoid with irregular coastal edges
+  const rockPath = `
+    M 160 320
+    L 540 320
+    L 536 282
+    L 492 240
+    L 498 210
+    L 480 185
+    L 450 162
+    L 410 150
+    L 370 158
+    L 340 145
+    L 300 148
+    L 265 140
+    L 230 152
+    L 210 168
+    L 195 192
+    L 178 218
+    L 172 268
+    Z
+  `;
+
+  // Figure path — chunky jumping musician, arms raised
+  const figureParts = {
+    head:     "M 345 58 m -28 0 a 28 28 0 1 0 56 0 a 28 28 0 1 0 -56 0",
+    torso:    "M 323 92 Q 320 100 320 118 L 320 168 Q 322 175 345 175 Q 368 175 370 168 L 370 118 Q 370 100 367 92 Z",
+    armL:     "M 323 105 L 280 68 L 262 42",
+    armR:     "M 367 105 L 412 65 L 432 38",
+    legL:     "M 330 172 L 305 210 L 288 240",
+    legR:     "M 360 172 L 388 214 L 402 244",
+    handL:    "M 262 42 m -13 0 a 13 13 0 1 0 26 0 a 13 13 0 1 0 -26 0",
+    handR:    "M 432 38 m -13 0 a 13 13 0 1 0 26 0 a 13 13 0 1 0 -26 0",
+    footL:    "M 288 240 m -11 0 a 11 8 0 1 0 22 0 a 11 8 0 1 0 -22 0",
+    footR:    "M 402 244 m -11 0 a 11 8 0 1 0 22 0 a 11 8 0 1 0 -22 0",
+  };
+
+  return (
+    <div style={{
+      position:"fixed", inset:0,
+      background:`linear-gradient(160deg, ${bgTop} 0%, ${bgBot} 100%)`,
+      display:"flex", flexDirection:"column",
+      alignItems:"center", justifyContent:"space-between",
+      padding:"0 0 40px",
+      fontFamily:"'Barlow Condensed', sans-serif",
+      overflow:"hidden",
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@800&family=JetBrains+Mono:wght@700&display=swap');
+        @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes pulse  { from{opacity:0.4} to{opacity:1} }
+        @keyframes jumpFig { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+        .splash-title { animation: fadeUp 0.7s ease both; }
+        .splash-sub   { animation: fadeUp 0.7s 0.2s ease both; }
+        .splash-scene { animation: fadeUp 0.8s 0.3s ease both; }
+        .splash-fig   { animation: jumpFig 1.8s ease-in-out infinite; transform-origin: 345px 320px; }
+        .splash-loader{ animation: pulse 0.9s ease-in-out infinite alternate; }
+      `}</style>
+
+      {/* ── TOP: Cross + title ── */}
+      <div className="splash-title" style={{
+        display:"flex", flexDirection:"column", alignItems:"center",
+        paddingTop:60, gap:4,
+      }}>
+        {/* Cross */}
+        <svg width="56" height="70" viewBox="0 0 56 70">
+          <rect x="24" y="0"  width="8" height="70" rx="3" fill={textCol}/>
+          <rect x="0"  y="20" width="56" height="8"  rx="3" fill={textCol}/>
+        </svg>
+
+        <div style={{
+          fontSize:52, fontWeight:800, letterSpacing:"0.18em",
+          color:textCol, lineHeight:1, marginTop:8,
+          textShadow:`0 0 30px ${textCol}55`,
+        }}>ON THE</div>
+
+        <div style={{
+          fontSize:130, fontWeight:800, letterSpacing:"0.06em",
+          color:textCol, lineHeight:0.9,
+          textShadow:`0 0 60px ${textCol}44, 0 4px 8px rgba(0,0,0,0.3)`,
+        }}>ROCK</div>
+
+        <div className="splash-sub" style={{
+          fontSize:16, fontWeight:700, letterSpacing:"0.18em",
+          color:`${textCol}66`, marginTop:6,
+          fontFamily:"'JetBrains Mono', monospace",
+        }}>beta test by Migue for you</div>
+      </div>
+
+      {/* ── MIDDLE: Rock + figure scene ── */}
+      <div className="splash-scene" style={{flex:1, display:"flex", alignItems:"flex-end", justifyContent:"center"}}>
+        <svg width="700" height="380" viewBox="0 0 700 380" style={{overflow:"visible"}}>
+          {/* Sea lines */}
+          {[0,1,2,3,4].map(i=>(
+            <line key={i}
+              x1={80} y1={330+i*20} x2={620} y2={330+i*20}
+              stroke={accent} strokeOpacity={0.25-i*0.04} strokeWidth={i===0?2:1}
+            />
+          ))}
+
+          {/* Rock shadow */}
+          <ellipse cx="350" cy="332" rx="175" ry="12" fill="rgba(0,0,0,0.18)" />
+
+          {/* Rock */}
+          <path d={rockPath} fill={textCol} fillOpacity={0.88} transform="translate(0,10)"/>
+          {/* Rock highlight facets */}
+          <line x1="210" y1="258" x2="230" y2="228" stroke={accent} strokeOpacity={0.3} strokeWidth={3}/>
+          <line x1="450" y1="232" x2="480" y2="205" stroke={accent} strokeOpacity={0.25} strokeWidth={2}/>
+
+          {/* Figure — jumping musician */}
+          <g className="splash-fig" fill={textCol} fillOpacity={0.92}>
+            {/* Head */}
+            <circle cx="345" cy="58" r="28"/>
+            {/* Torso */}
+            <rect x="320" y="88" width="50" height="80" rx="10"/>
+            {/* Arms raised */}
+            <line x1="323" y1="105" x2="275" y2="55"  stroke={textCol} strokeWidth="20" strokeLinecap="round"/>
+            <line x1="275" y1="55"  x2="255" y2="30"  stroke={textCol} strokeWidth="18" strokeLinecap="round"/>
+            <circle cx="255" cy="30" r="14"/>
+            <line x1="367" y1="105" x2="415" y2="52"  stroke={textCol} strokeWidth="20" strokeLinecap="round"/>
+            <line x1="415" y1="52"  x2="438" y2="26"  stroke={textCol} strokeWidth="18" strokeLinecap="round"/>
+            <circle cx="438" cy="26" r="14"/>
+            {/* Legs — jump pose */}
+            <line x1="333" y1="168" x2="305" y2="208" stroke={textCol} strokeWidth="22" strokeLinecap="round"/>
+            <line x1="305" y1="208" x2="288" y2="238" stroke={textCol} strokeWidth="20" strokeLinecap="round"/>
+            <ellipse cx="288" cy="238" rx="12" ry="9"/>
+            <line x1="357" y1="168" x2="388" y2="210" stroke={textCol} strokeWidth="22" strokeLinecap="round"/>
+            <line x1="388" y1="210" x2="404" y2="242" stroke={textCol} strokeWidth="20" strokeLinecap="round"/>
+            <ellipse cx="404" cy="242" rx="12" ry="9"/>
+          </g>
+
+          {/* Motion lines */}
+          {[[460,100,30],[468,130,20],[455,72,22]].map(([x,y,l],i)=>(
+            <line key={i} x1={x} y1={y} x2={x+l} y2={y} stroke={textCol} strokeOpacity={0.4} strokeWidth={4} strokeLinecap="round"/>
+          ))}
+          {[[230,95,28],[222,125,18]].map(([x,y,l],i)=>(
+            <line key={i} x1={x} y1={y} x2={x-l} y2={y} stroke={textCol} strokeOpacity={0.4} strokeWidth={4} strokeLinecap="round"/>
+          ))}
+        </svg>
+      </div>
+
+      {/* ── BOTTOM: loader ── */}
+      <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:12}}>
+        <div className="splash-loader" style={{
+          width:48, height:3, borderRadius:2,
+          background:textCol, opacity:0.5,
+        }}/>
+        <div style={{
+          fontSize:11, letterSpacing:"0.14em",
+          color:`${textCol}55`,
+          fontFamily:"'JetBrains Mono', monospace",
+        }}>WORSHIP CHORD CHARTS</div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Root App ─────────────────────────────────────────────────────────────────
 const ADMIN_TOKEN = "otr2024admin";
 const APP_NAME = "On The Rock";
@@ -1627,20 +1805,7 @@ export default function App() {
   }
 
   if (loading) {
-    return (
-      <div style={{
-        minHeight:"100vh", background:"#080808",
-        display:"flex", flexDirection:"column",
-        alignItems:"center", justifyContent:"center", gap:16
-      }}>
-        <div style={{fontSize:28, color:"#5BB8F5", filter:"drop-shadow(0 0 10px rgba(91,184,245,0.5))"}}>✝</div>
-        <div style={{fontFamily:"'Barlow Condensed',sans-serif", fontSize:18, fontWeight:800,
-          letterSpacing:"0.14em", textTransform:"uppercase", color:"#FFF"}}>{APP_NAME}</div>
-        <div style={{width:40, height:2, background:"rgba(91,184,245,0.3)", borderRadius:2,
-          animation:"pulse 1s infinite alternate"}} />
-        <style>{`@keyframes pulse{from{opacity:0.3}to{opacity:1}}`}</style>
-      </div>
-    );
+    return <SplashScreen />;
   }
 
   if (mode === "import" && isAdmin) {
