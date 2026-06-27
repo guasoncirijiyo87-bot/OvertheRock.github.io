@@ -875,39 +875,166 @@ function ImportScreen({ onImport, onSkip }) {
 }
 
 // ─── Setlist Screen ───────────────────────────────────────────────────────────
-function SetlistScreen({ songs, currentSongId, onSelect, onNewSong, onBack }) {
+function SetlistScreen({ songs, currentSongId, onSelect, onNewSong, onBack, isAdmin, onUpdateSongs, culto, onUpdateCulto }) {
+  const [tab, setTab] = useState("todas"); // "todas" | "culto"
+  const [filter, setFilter] = useState("todas"); // "todas" | "alabanza" | "adoracion"
+
+  const alabanzas = songs.filter(s => s.categoria === "alabanza");
+  const adoracion = songs.filter(s => s.categoria === "adoracion");
+  const sinCategoria = songs.filter(s => !s.categoria);
+
+  function toggleCulto(songId) {
+    const updated = culto.includes(songId)
+      ? culto.filter(id => id !== songId)
+      : [...culto, songId];
+    onUpdateCulto(updated);
+  }
+
+  function moveCulto(idx, dir) {
+    const updated = [...culto];
+    const target = idx + dir;
+    if (target < 0 || target >= updated.length) return;
+    [updated[idx], updated[target]] = [updated[target], updated[idx]];
+    onUpdateCulto(updated);
+  }
+
+  const cultoSongs = culto.map(id => songs.find(s => s.id === id)).filter(Boolean);
+
+  function renderSongCard(song) {
+    const inCulto = culto.includes(song.id);
+    return (
+      <div key={song.id} className={`sl-song-card ${currentSongId===song.id?"active":""}`}>
+        <div className="sl-song-main" onClick={()=>onSelect(song.id)}>
+          <div className="sl-song-title">{song.title}</div>
+          <div className="sl-song-meta">
+            {song.originalKey} / {EN_TO_ES[song.originalKey]} · {song.bpm} BPM
+            {song.categoria && (
+              <span className={`sl-cat-badge ${song.categoria}`}>
+                {song.categoria === "alabanza" ? "Alabanza" : "Adoración"}
+              </span>
+            )}
+          </div>
+        </div>
+        <button
+          className={`sl-culto-btn ${inCulto?"in":""}`}
+          onClick={()=>toggleCulto(song.id)}
+          title={inCulto?"Quitar del culto":"Agregar al culto"}
+        >{inCulto ? "✓" : "+"}</button>
+      </div>
+    );
+  }
+
   return (
-    <div style={{
-      minHeight:"100vh", background:"#0A0A0A", color:"#DDD",
-      fontFamily:"'Barlow',sans-serif"
-    }}>
+    <div style={{ minHeight:"100vh", background:"#0A0A0A", color:"#DDD", fontFamily:"'Barlow',sans-serif" }}>
       <style>{CSS_SETLIST}</style>
 
       <div className="setlist-topbar">
-        <div>
+        <div className="sl-topbar-left">
           <span className="sl-cross">✝</span>
-          <span className="sl-brand">SETLIST</span>
+          <span className="sl-brand">On The Rock</span>
         </div>
         <button className="sl-back" onClick={onBack}>← Volver</button>
       </div>
 
-      <div className="setlist-body">
-        <button className="sl-new-song" onClick={onNewSong}>+ Nueva canción</button>
+      {/* Tabs */}
+      <div className="sl-tabs">
+        <button className={`sl-tab ${tab==="todas"?"active":""}`} onClick={()=>setTab("todas")}>
+          Todas ({songs.length})
+        </button>
+        <button className={`sl-tab ${tab==="culto"?"active":""}`} onClick={()=>setTab("culto")}>
+          Lista culto ({cultoSongs.length})
+        </button>
+      </div>
 
-        <div className="setlist-list">
-          {songs.map(song => (
-            <button
-              key={song.id}
-              className={`sl-song-card ${currentSongId===song.id?"active":""}`}
-              onClick={()=>onSelect(song.id)}
-            >
-              <div className="sl-song-title">{song.title}</div>
-              <div className="sl-song-meta">
-                {song.originalKey} / {EN_TO_ES[song.originalKey]} · {song.bpm} BPM · {song.sections.length} secciones
+      <div className="setlist-body">
+
+        {/* ── Tab: Todas ── */}
+        {tab === "todas" && (
+          <>
+            {isAdmin && (
+              <div className="sl-new-btns">
+                <button className="sl-new-song alabanza" onClick={()=>onNewSong("alabanza")}>
+                  + Nueva Alabanza
+                </button>
+                <button className="sl-new-song adoracion" onClick={()=>onNewSong("adoracion")}>
+                  + Nueva Adoración
+                </button>
               </div>
-            </button>
-          ))}
-        </div>
+            )}
+
+            {/* Filter */}
+            <div className="sl-filter-row">
+              {["todas","alabanza","adoracion"].map(f=>(
+                <button
+                  key={f}
+                  className={`sl-filter-btn ${filter===f?"active":""}`}
+                  onClick={()=>setFilter(f)}
+                >
+                  {f==="todas"?"Todas":f==="alabanza"?"Alabanza":"Adoración"}
+                </button>
+              ))}
+            </div>
+
+            <div className="setlist-list">
+              {/* Alabanza */}
+              {(filter==="todas"||filter==="alabanza") && alabanzas.length>0 && (
+                <>
+                  <div className="sl-category-header alabanza">🎵 Alabanza</div>
+                  {alabanzas.map(renderSongCard)}
+                </>
+              )}
+              {/* Adoración */}
+              {(filter==="todas"||filter==="adoracion") && adoracion.length>0 && (
+                <>
+                  <div className="sl-category-header adoracion">🕊 Adoración</div>
+                  {adoracion.map(renderSongCard)}
+                </>
+              )}
+              {/* Sin categoría */}
+              {(filter==="todas") && sinCategoria.length>0 && (
+                <>
+                  <div className="sl-category-header sin">📋 Sin categoría</div>
+                  {sinCategoria.map(renderSongCard)}
+                </>
+              )}
+              {songs.length===0 && (
+                <div className="sl-empty">No hay canciones cargadas todavía.</div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── Tab: Lista culto ── */}
+        {tab === "culto" && (
+          <div className="setlist-list">
+            {cultoSongs.length === 0 && (
+              <div className="sl-empty">
+                Andá a "Todas" y tocá <strong>+</strong> en cada canción para agregarla al culto.
+              </div>
+            )}
+            {cultoSongs.map((song, idx) => (
+              <div key={song.id} className={`sl-song-card ${currentSongId===song.id?"active":""}`}>
+                <div className="sl-culto-order">{idx+1}</div>
+                <div className="sl-song-main" onClick={()=>onSelect(song.id)}>
+                  <div className="sl-song-title">{song.title}</div>
+                  <div className="sl-song-meta">
+                    {song.originalKey} / {EN_TO_ES[song.originalKey]} · {song.bpm} BPM
+                    {song.categoria && (
+                      <span className={`sl-cat-badge ${song.categoria}`}>
+                        {song.categoria === "alabanza" ? "Alabanza" : "Adoración"}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="sl-culto-actions">
+                  <button className="sl-move-btn" onClick={()=>moveCulto(idx,-1)} disabled={idx===0}>↑</button>
+                  <button className="sl-move-btn" onClick={()=>moveCulto(idx,1)} disabled={idx===cultoSongs.length-1}>↓</button>
+                  <button className="sl-culto-btn in" onClick={()=>toggleCulto(song.id)}>✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1216,6 +1343,170 @@ const CSS_PHONE = `
 // ─── Root App ─────────────────────────────────────────────────────────────────
 const ADMIN_TOKEN = "otr2024admin";
 const APP_NAME = "On The Rock";
+
+export default function App() {
+  const [songs, setSongs] = useState(() => localLoad() || [DEFAULT_SONG]);
+  const [currentSongId, setCurrentSongId] = useState(null);
+  const [mode, setMode] = useState("view");
+  const [loading, setLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState("idle");
+  const [culto, setCulto] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("otr_culto") || "[]"); } catch(e) { return []; }
+  });
+
+  const [isAdmin, setIsAdmin] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("admin");
+    if (token === ADMIN_TOKEN) {
+      localStorage.setItem("otr_admin", "true");
+      window.history.replaceState({}, "", window.location.pathname);
+      return true;
+    }
+    return localStorage.getItem("otr_admin") === "true";
+  });
+
+  useEffect(() => {
+    dbLoadSongs().then(data => {
+      if (data && data.length > 0) {
+        setSongs(data);
+        localSave(data);
+        setCurrentSongId(data[0].id);
+      } else {
+        const cached = localLoad();
+        if (cached && cached.length > 0) {
+          setSongs(cached);
+          setCurrentSongId(cached[0].id);
+        } else {
+          setSongs([DEFAULT_SONG]);
+          setCurrentSongId(DEFAULT_SONG.id);
+        }
+      }
+      setLoading(false);
+    });
+  }, []);
+
+  const currentSong = songs.find(s => s.id === currentSongId) || songs[0] || DEFAULT_SONG;
+
+  async function updateAllSongs(updated) {
+    setSongs(updated);
+    localSave(updated);
+    setSyncStatus("saving");
+    const ok = await dbSaveSongs(updated);
+    setSyncStatus(ok ? "saved" : "error");
+    setTimeout(() => setSyncStatus("idle"), 2500);
+  }
+
+  function handleSave(updated) {
+    updateAllSongs(songs.map(s => s.id === currentSongId ? updated : s));
+    setMode("view");
+  }
+
+  function handleImport(parsed) {
+    const updated = [...songs, parsed];
+    updateAllSongs(updated);
+    setCurrentSongId(parsed.id);
+    setMode("edit");
+  }
+
+  function handleDelete(songId) {
+    const remaining = songs.filter(s => s.id !== songId);
+    if (remaining.length === 0) remaining.push(DEFAULT_SONG);
+    updateAllSongs(remaining);
+    setCulto(c => { const updated = c.filter(id=>id!==songId); localStorage.setItem("otr_culto", JSON.stringify(updated)); return updated; });
+    setCurrentSongId(remaining[0].id);
+    setMode("view");
+  }
+
+  function handleSelectSong(songId) {
+    setCurrentSongId(songId);
+    setMode("view");
+  }
+
+  function handleRevokeAdmin() {
+    localStorage.removeItem("otr_admin");
+    setIsAdmin(false);
+    setMode("view");
+  }
+
+  function handleUpdateCulto(updated) {
+    setCulto(updated);
+    localStorage.setItem("otr_culto", JSON.stringify(updated));
+  }
+
+  if (loading) {
+    return (
+      <div style={{
+        minHeight:"100vh", background:"#080808",
+        display:"flex", flexDirection:"column",
+        alignItems:"center", justifyContent:"center", gap:16
+      }}>
+        <div style={{fontSize:28, color:"#5BB8F5", filter:"drop-shadow(0 0 10px rgba(91,184,245,0.5))"}}>✝</div>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif", fontSize:18, fontWeight:800,
+          letterSpacing:"0.14em", textTransform:"uppercase", color:"#FFF"}}>{APP_NAME}</div>
+        <div style={{width:40, height:2, background:"rgba(91,184,245,0.3)", borderRadius:2,
+          animation:"pulse 1s infinite alternate"}} />
+        <style>{`@keyframes pulse{from{opacity:0.3}to{opacity:1}}`}</style>
+      </div>
+    );
+  }
+
+  if (mode === "import" && isAdmin) {
+    return <ImportScreen onImport={handleImport} onSkip={() => setMode("edit")} appName={APP_NAME} />;
+  }
+  if (mode === "edit" && isAdmin) {
+    return (
+      <AdminEditor
+        song={currentSong}
+        onSave={handleSave}
+        onCancel={() => setMode("view")}
+        onImport={() => setMode("import")}
+        onDelete={handleDelete}
+        syncStatus={syncStatus}
+        appName={APP_NAME}
+      />
+    );
+  }
+  if (mode === "setlist") {
+    return (
+      <SetlistScreen
+        songs={songs}
+        currentSongId={currentSongId}
+        onSelect={handleSelectSong}
+        onNewSong={(categoria) => {
+          if (!isAdmin) { setMode("view"); return; }
+          const newSong = {
+            id: Date.now(),
+            title: "Nueva canción",
+            originalKey: "G",
+            bpm: 72,
+            categoria: categoria || null,
+            sections: [
+              { id:"s"+Date.now(), label:"ESTROFA", color:"#E8497A", lines:[{chords:[],lyric:""}] }
+            ]
+          };
+          updateAllSongs([...songs, newSong]);
+          setCurrentSongId(newSong.id);
+          setMode("edit");
+        }}
+        onBack={() => setMode("view")}
+        isAdmin={isAdmin}
+        culto={culto}
+        onUpdateCulto={handleUpdateCulto}
+      />
+    );
+  }
+
+  return (
+    <MusicianView
+      song={currentSong}
+      onEdit={isAdmin ? () => setMode("edit") : null}
+      onSetlist={() => setMode("setlist")}
+      onRevokeAdmin={isAdmin ? handleRevokeAdmin : null}
+      syncStatus={syncStatus}
+      appName={APP_NAME}
+    />
+  );
+}
 
 export default function App() {
   const [songs, setSongs] = useState(() => localLoad() || [DEFAULT_SONG]);
@@ -1745,22 +2036,120 @@ const CSS_IMPORT = `
 
 // ─── CSS: Setlist Screen ──────────────────────────────────────────────────────
 const CSS_SETLIST = `
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500&display=swap');
 
-.setlist-topbar{position:sticky;top:0;z-index:200;background:#0A0A0A;border-bottom:1px solid #222;padding:0 20px;height:56px;display:flex;align-items:center;justify-content:space-between;}
-.sl-cross{color:#5BB8F5;font-size:18px;margin-right:8px;}
+.setlist-topbar{
+  position:sticky;top:0;z-index:200;
+  background:rgba(8,8,8,0.9);backdrop-filter:blur(12px);
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  padding:0 20px;height:54px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.sl-topbar-left{display:flex;align-items:center;gap:8px;}
+.sl-cross{color:#5BB8F5;font-size:18px;filter:drop-shadow(0 0 5px rgba(91,184,245,0.5));}
 .sl-brand{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:#FFF;}
-.sl-back{background:transparent;border:1px solid #2A2A2A;color:#666;padding:6px 14px;border-radius:6px;font-family:'Barlow',sans-serif;font-size:12px;cursor:pointer;transition:all 0.15s;}
-.sl-back:hover{border-color:#444;color:#BBB;}
+.sl-back{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#666;padding:6px 14px;border-radius:8px;font-family:'Barlow',sans-serif;font-size:12px;cursor:pointer;transition:all 0.15s;}
+.sl-back:hover{border-color:rgba(255,255,255,0.2);color:#CCC;}
 
-.setlist-body{max-width:760px;margin:0 auto;padding:28px 20px;}
-.sl-new-song{width:100%;background:#1A6DB5;color:#FFF;border:none;padding:14px;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;transition:all 0.15s;margin-bottom:24px;}
-.sl-new-song:hover{background:#1E7FD4;}
+/* Tabs */
+.sl-tabs{display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,0.06);padding:0 20px;background:#080808;}
+.sl-tab{
+  font-family:'Barlow',sans-serif;font-size:12px;font-weight:700;
+  letter-spacing:0.05em;text-transform:uppercase;
+  background:transparent;border:none;color:#555;
+  padding:12px 16px;cursor:pointer;transition:all 0.15s;
+  border-bottom:2px solid transparent;margin-bottom:-1px;
+}
+.sl-tab:hover{color:#AAA;}
+.sl-tab.active{color:#5BB8F5;border-bottom-color:#5BB8F5;}
 
-.setlist-list{display:flex;flex-direction:column;gap:10px;}
-.sl-song-card{background:#161616;border:2px solid #1E1E1E;border-radius:10px;padding:16px;text-align:left;cursor:pointer;transition:all 0.15s;font-family:'Barlow',sans-serif;}
-.sl-song-card:hover{border-color:#2A2A2A;}
-.sl-song-card.active{border-color:#1A6DB5;background:#0F1F2F;}
-.sl-song-title{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:800;color:#FFF;margin-bottom:6px;}
-.sl-song-meta{font-size:12px;color:#888;font-family:'JetBrains Mono',monospace;}
+.setlist-body{max-width:760px;margin:0 auto;padding:20px;}
+
+/* New song buttons */
+.sl-new-btns{display:flex;gap:8px;margin-bottom:16px;}
+.sl-new-song{
+  flex:1;border:none;padding:12px;border-radius:8px;
+  font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:800;
+  letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;transition:all 0.15s;
+}
+.sl-new-song.alabanza{background:rgba(26,109,181,0.2);color:#5BB8F5;border:1px solid rgba(91,184,245,0.3);}
+.sl-new-song.alabanza:hover{background:rgba(26,109,181,0.35);}
+.sl-new-song.adoracion{background:rgba(167,139,250,0.15);color:#A78BFA;border:1px solid rgba(167,139,250,0.3);}
+.sl-new-song.adoracion:hover{background:rgba(167,139,250,0.25);}
+
+/* Filter */
+.sl-filter-row{display:flex;gap:6px;margin-bottom:16px;}
+.sl-filter-btn{
+  font-family:'Barlow',sans-serif;font-size:11px;font-weight:700;
+  letter-spacing:0.05em;text-transform:uppercase;
+  background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);
+  color:#555;padding:5px 12px;border-radius:20px;cursor:pointer;transition:all 0.15s;
+}
+.sl-filter-btn:hover{color:#AAA;border-color:rgba(255,255,255,0.15);}
+.sl-filter-btn.active{background:rgba(91,184,245,0.1);border-color:rgba(91,184,245,0.3);color:#5BB8F5;}
+
+/* Category headers */
+.sl-category-header{
+  font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;
+  letter-spacing:0.14em;text-transform:uppercase;
+  padding:6px 4px;margin-top:8px;margin-bottom:4px;
+}
+.sl-category-header.alabanza{color:#5BB8F5;}
+.sl-category-header.adoracion{color:#A78BFA;}
+.sl-category-header.sin{color:#555;}
+
+.sl-empty{
+  text-align:center;padding:40px 20px;color:#444;
+  font-size:13px;line-height:1.6;
+}
+
+/* Song cards */
+.setlist-list{display:flex;flex-direction:column;gap:6px;}
+.sl-song-card{
+  background:rgba(255,255,255,0.02);
+  border:1px solid rgba(255,255,255,0.05);
+  border-radius:10px;
+  display:flex;align-items:center;gap:10px;
+  padding:12px 14px;
+  transition:all 0.15s;
+}
+.sl-song-card:hover{border-color:rgba(255,255,255,0.1);}
+.sl-song-card.active{border-color:rgba(91,184,245,0.4);background:rgba(26,109,181,0.08);}
+.sl-song-main{flex:1;cursor:pointer;}
+.sl-song-title{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:800;color:#FFF;margin-bottom:4px;}
+.sl-song-meta{font-size:11px;color:#666;font-family:'JetBrains Mono',monospace;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+
+/* Category badge */
+.sl-cat-badge{
+  font-family:'Barlow',sans-serif;font-size:9px;font-weight:700;
+  letter-spacing:0.08em;text-transform:uppercase;
+  padding:2px 6px;border-radius:3px;
+}
+.sl-cat-badge.alabanza{background:rgba(91,184,245,0.1);color:#5BB8F5;border:1px solid rgba(91,184,245,0.2);}
+.sl-cat-badge.adoracion{background:rgba(167,139,250,0.1);color:#A78BFA;border:1px solid rgba(167,139,250,0.2);}
+
+/* Culto button */
+.sl-culto-btn{
+  width:30px;height:30px;border-radius:8px;
+  background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
+  color:#555;font-size:14px;cursor:pointer;transition:all 0.15s;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.sl-culto-btn:hover{border-color:rgba(52,211,153,0.4);color:#34D399;}
+.sl-culto-btn.in{background:rgba(52,211,153,0.15);border-color:rgba(52,211,153,0.4);color:#34D399;}
+
+/* Culto order & actions */
+.sl-culto-order{
+  font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;
+  color:#444;width:20px;text-align:center;flex-shrink:0;
+}
+.sl-culto-actions{display:flex;gap:4px;flex-shrink:0;}
+.sl-move-btn{
+  width:26px;height:26px;border-radius:6px;
+  background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);
+  color:#555;font-size:12px;cursor:pointer;transition:all 0.12s;
+  display:flex;align-items:center;justify-content:center;
+}
+.sl-move-btn:hover{color:#CCC;border-color:rgba(255,255,255,0.2);}
+.sl-move-btn:disabled{opacity:0.2;cursor:not-allowed;}
 `;
