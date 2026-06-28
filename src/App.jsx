@@ -1526,6 +1526,226 @@ const CSS_PHONE = `
 }
 `;
 
+// ─── Play tracking ────────────────────────────────────────────────────────────
+const RECENTS_KEY = "otr_recents";   // [{id, title, ts}] — per device
+const PLAYCNT_KEY = "otr_playcnt";   // {songId: count} — per device
+
+function getRecents() {
+  try { return JSON.parse(localStorage.getItem(RECENTS_KEY) || "[]"); } catch(e) { return []; }
+}
+function trackOpen(song) {
+  // Recents
+  const recents = getRecents().filter(r => r.id !== song.id);
+  recents.unshift({ id: song.id, title: song.title, categoria: song.categoria, ts: Date.now() });
+  localStorage.setItem(RECENTS_KEY, JSON.stringify(recents.slice(0, 10)));
+  // Play count
+  try {
+    const counts = JSON.parse(localStorage.getItem(PLAYCNT_KEY) || "{}");
+    counts[song.id] = (counts[song.id] || 0) + 1;
+    localStorage.setItem(PLAYCNT_KEY, JSON.stringify(counts));
+  } catch(e) {}
+}
+function getTopPlayed(songs, n=3) {
+  try {
+    const counts = JSON.parse(localStorage.getItem(PLAYCNT_KEY) || "{}");
+    return songs
+      .filter(s => counts[s.id])
+      .sort((a,b) => (counts[b.id]||0) - (counts[a.id]||0))
+      .slice(0, n)
+      .map(s => ({ ...s, count: counts[s.id] }));
+  } catch(e) { return []; }
+}
+function getTopCulto(songs, culto, n=3) {
+  // Most frequent in lista culto — use culto order as proxy (first = most important)
+  const cultoSongs = culto
+    .map((e,i) => ({ song: songs.find(s=>s.id===(e?.id??e)), rank: i }))
+    .filter(x=>x.song)
+    .slice(0, n)
+    .map(x=>x.song);
+  return cultoSongs;
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+function Dashboard({ songs, culto, onSelectSong, onSetlist, onEdit, onRevokeAdmin, isAdmin }) {
+  const recents  = getRecents()
+    .map(r => songs.find(s=>s.id===r.id))
+    .filter(Boolean)
+    .slice(0,5);
+  const topPlayed = getTopPlayed(songs, 3);
+  const topCulto  = getTopCulto(songs, culto, 3);
+
+  const themeIdx = parseInt(localStorage.getItem("otr_theme") || "0");
+  const [bgTop, bgBot, textCol] = SPLASH_THEMES[(themeIdx) % SPLASH_THEMES.length];
+  const isDark = bgTop !== "#F0F0F8" && bgTop !== "#FFFFFF";
+  const cardBg  = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
+  const cardBrd = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.1)";
+  const labelCol= isDark ? "rgba(255,255,255,0.4)"  : "rgba(0,0,0,0.35)";
+  const titleCol= isDark ? "#FFF" : "#111";
+
+  function SongPill({ song, rank }) {
+    const catColor = song.categoria==="adoracion" ? "#A78BFA" : "#5BB8F5";
+    return (
+      <div onClick={()=>onSelectSong(song.id)} style={{
+        display:"flex", alignItems:"center", gap:12,
+        padding:"12px 16px",
+        background:cardBg, border:`1px solid ${cardBrd}`,
+        borderRadius:10, cursor:"pointer", transition:"all 0.15s",
+      }}>
+        {rank && <div style={{
+          fontFamily:"'JetBrains Mono',monospace", fontSize:11,
+          color:textCol, opacity:0.4, minWidth:20, textAlign:"center",
+        }}>{rank}</div>}
+        <div style={{flex:1}}>
+          <div style={{
+            fontFamily:"'Barlow Condensed',sans-serif",
+            fontSize:16, fontWeight:800, color:titleCol, marginBottom:2,
+          }}>{song.title}</div>
+          <div style={{fontSize:11, color:labelCol, fontFamily:"'JetBrains Mono',monospace"}}>
+            {song.originalKey} · {song.bpm} BPM
+            {song.categoria && <span style={{
+              marginLeft:8, color:catColor,
+              textTransform:"uppercase", letterSpacing:"0.06em",
+            }}>· {song.categoria}</span>}
+          </div>
+        </div>
+        <div style={{color:labelCol, fontSize:18}}>›</div>
+      </div>
+    );
+  }
+
+  function EmptyState({ msg }) {
+    return (
+      <div style={{
+        padding:"20px 16px", textAlign:"center",
+        color:labelCol, fontSize:13,
+        background:cardBg, border:`1px dashed ${cardBrd}`,
+        borderRadius:10, fontStyle:"italic",
+      }}>{msg}</div>
+    );
+  }
+
+  return (
+    <div style={{
+      minHeight:"100vh",
+      background:`linear-gradient(160deg, ${bgTop} 0%, ${bgBot} 100%)`,
+      fontFamily:"'Barlow',sans-serif",
+      paddingBottom:60,
+    }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@800&family=JetBrains+Mono:wght@700&family=Barlow:wght@400;600&display=swap');`}</style>
+
+      {/* Header */}
+      <div style={{
+        display:"flex", alignItems:"center", justifyContent:"space-between",
+        padding:"16px 20px",
+        background: isDark ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.3)",
+        backdropFilter:"blur(12px)",
+        borderBottom:`1px solid ${cardBrd}`,
+        position:"sticky", top:0, zIndex:100,
+      }}>
+        <div style={{display:"flex", alignItems:"center", gap:8}}>
+          <span style={{color:textCol, fontSize:18, filter:`drop-shadow(0 0 6px ${textCol}88)`}}>✝</span>
+          <span style={{
+            fontFamily:"'Barlow Condensed',sans-serif",
+            fontSize:15, fontWeight:800, letterSpacing:"0.14em",
+            textTransform:"uppercase", color:titleCol,
+          }}>On The Rock</span>
+        </div>
+        <div style={{display:"flex", gap:6}}>
+          <button onClick={onSetlist} style={{
+            background:cardBg, border:`1px solid ${cardBrd}`,
+            color:titleCol, padding:"6px 14px", borderRadius:8,
+            fontSize:12, fontWeight:700, cursor:"pointer",
+            letterSpacing:"0.05em", textTransform:"uppercase",
+          }}>☰ Canciones</button>
+          {isAdmin && <button onClick={onEdit} style={{
+            background:cardBg, border:`1px solid ${cardBrd}`,
+            color:textCol, padding:"6px 10px", borderRadius:8,
+            fontSize:14, cursor:"pointer",
+          }}>✎</button>}
+          {isAdmin && <button onClick={onRevokeAdmin} style={{
+            background:"transparent", border:"none",
+            color:labelCol, padding:"6px 8px",
+            fontSize:14, cursor:"pointer",
+          }}>🔓</button>}
+        </div>
+      </div>
+
+      {/* Mini logo */}
+      <div style={{textAlign:"center", padding:"28px 20px 16px"}}>
+        <div style={{
+          fontFamily:"'Barlow Condensed',sans-serif",
+          fontSize:42, fontWeight:800, letterSpacing:"0.06em",
+          color:textCol,
+          textShadow:`0 0 30px ${textCol}44`,
+          lineHeight:1,
+        }}>ON THE ROCK</div>
+        <div style={{fontSize:11, color:labelCol, letterSpacing:"0.1em", marginTop:4,
+          fontFamily:"'JetBrains Mono',monospace"}}>
+          WORSHIP CHORD CHARTS
+        </div>
+      </div>
+
+      <div style={{maxWidth:720, margin:"0 auto", padding:"0 20px", display:"flex", flexDirection:"column", gap:28}}>
+
+        {/* Recientes */}
+        <div>
+          <div style={{
+            fontSize:10, fontWeight:700, letterSpacing:"0.14em",
+            textTransform:"uppercase", color:labelCol,
+            marginBottom:10, fontFamily:"'JetBrains Mono',monospace",
+          }}>Recientes</div>
+          {recents.length === 0
+            ? <EmptyState msg="Todavía no abriste ninguna canción." />
+            : <div style={{display:"flex", flexDirection:"column", gap:6}}>
+                {recents.map(s=><SongPill key={s.id} song={s}/>)}
+              </div>
+          }
+        </div>
+
+        {/* Top más practicadas */}
+        <div>
+          <div style={{
+            fontSize:10, fontWeight:700, letterSpacing:"0.14em",
+            textTransform:"uppercase", color:labelCol,
+            marginBottom:10, fontFamily:"'JetBrains Mono',monospace",
+          }}>Más practicadas</div>
+          {topPlayed.length < 2
+            ? <EmptyState msg="Todavía no hay suficiente info. Seguí practicando 🎸" />
+            : <div style={{display:"flex", flexDirection:"column", gap:6}}>
+                {topPlayed.map((s,i)=><SongPill key={s.id} song={s} rank={i+1}/>)}
+              </div>
+          }
+        </div>
+
+        {/* Top lista culto */}
+        <div>
+          <div style={{
+            fontSize:10, fontWeight:700, letterSpacing:"0.14em",
+            textTransform:"uppercase", color:labelCol,
+            marginBottom:10, fontFamily:"'JetBrains Mono',monospace",
+          }}>Lista culto actual</div>
+          {topCulto.length === 0
+            ? <EmptyState msg="No hay canciones en la lista culto todavía." />
+            : <div style={{display:"flex", flexDirection:"column", gap:6}}>
+                {topCulto.map((s,i)=><SongPill key={s.id} song={s} rank={i+1}/>)}
+              </div>
+          }
+        </div>
+
+        {/* Quick action */}
+        <button onClick={onSetlist} style={{
+          width:"100%",
+          background:textCol, color: isDark ? "#080808" : "#FFF",
+          border:"none", padding:"14px", borderRadius:12,
+          fontFamily:"'Barlow Condensed',sans-serif",
+          fontSize:14, fontWeight:800, letterSpacing:"0.1em",
+          textTransform:"uppercase", cursor:"pointer",
+        }}>Ver todas las canciones →</button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Splash Screen ────────────────────────────────────────────────────────────
 const SPLASH_THEMES = [
   // [bg_top, bg_bot, text_col, accent]
@@ -1713,6 +1933,8 @@ export default function App() {
   const [currentSongId, setCurrentSongId] = useState(null);
   const [mode, setMode] = useState("view");
   const [loading, setLoading] = useState(true);
+  const [showDash, setShowDash] = useState(false);
+  const [splashSliding, setSplashSliding] = useState(false);
   const [syncStatus, setSyncStatus] = useState("idle");
   const [culto, setCulto] = useState([]);
   const [pendingCategoria, setPendingCategoria] = useState("alabanza");
@@ -1729,7 +1951,8 @@ export default function App() {
   });
 
   useEffect(() => {
-    dbLoadSongs().then(data => {
+    const minSplash = new Promise(r => setTimeout(r, 2000));
+    Promise.all([dbLoadSongs(), dbLoadCulto(), minSplash]).then(([data, cultoData]) => {
       if (data && data.length > 0) {
         setSongs(data);
         localSave(data);
@@ -1744,7 +1967,10 @@ export default function App() {
           setCurrentSongId(DEFAULT_SONG.id);
         }
       }
-      setLoading(false);
+      setCulto(cultoData || []);
+      // Trigger splash slide up, reveal dashboard
+      setSplashSliding(true);
+      setTimeout(() => { setLoading(false); setShowDash(true); }, 600);
     });
   }, []);
 
@@ -1781,7 +2007,10 @@ export default function App() {
   }
 
   function handleSelectSong(songId) {
+    const song = songs.find(s=>s.id===songId);
+    if (song) trackOpen(song);
     setCurrentSongId(songId);
+    setShowDash(false);
     setMode("view");
   }
 
@@ -1804,8 +2033,51 @@ export default function App() {
     dbSaveCulto(updated);
   }
 
-  if (loading) {
-    return <SplashScreen />;
+  if (loading || splashSliding) {
+    return (
+      <div style={{position:"fixed",inset:0,overflow:"hidden"}}>
+        <style>{`
+          @keyframes slideUp {
+            from { transform: translateY(0); }
+            to   { transform: translateY(-100%); }
+          }
+        `}</style>
+        {/* Dashboard behind the splash */}
+        {splashSliding && (
+          <div style={{position:"absolute",inset:0,overflowY:"auto"}}>
+            <Dashboard
+              songs={songs} culto={culto}
+              onSelectSong={handleSelectSong}
+              onSetlist={()=>{ setShowDash(false); setMode("setlist"); }}
+              onEdit={()=>{ setShowDash(false); setMode("edit"); }}
+              onRevokeAdmin={handleRevokeAdmin}
+              isAdmin={isAdmin}
+            />
+          </div>
+        )}
+        {/* Splash on top, slides up */}
+        <div style={{
+          position:"absolute",inset:0,
+          animation: splashSliding ? "slideUp 0.6s cubic-bezier(0.4,0,0.2,1) forwards" : "none",
+          zIndex:10,
+        }}>
+          <SplashScreen />
+        </div>
+      </div>
+    );
+  }
+
+  if (showDash) {
+    return (
+      <Dashboard
+        songs={songs} culto={culto}
+        onSelectSong={handleSelectSong}
+        onSetlist={()=>{ setShowDash(false); setMode("setlist"); }}
+        onEdit={()=>{ setShowDash(false); setMode("edit"); }}
+        onRevokeAdmin={handleRevokeAdmin}
+        isAdmin={isAdmin}
+      />
+    );
   }
 
   if (mode === "import" && isAdmin) {
