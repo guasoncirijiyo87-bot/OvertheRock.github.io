@@ -2012,25 +2012,11 @@ export default function App() {
             to   { transform: translateY(-100%); }
           }
         `}</style>
-        {/* Dashboard behind the splash */}
-        {splashSliding && (
-          <div style={{position:"absolute",inset:0,overflowY:"auto"}}>
-            <Dashboard
-              songs={songs} culto={culto}
-              onSelectSong={handleSelectSong}
-              onSetlist={()=>{ setShowDash(false); setMode("setlist"); }}
-              onEdit={()=>{ setShowDash(false); setMode("edit"); }}
-              onRevokeAdmin={handleRevokeAdmin}
-              isAdmin={isAdmin}
-            />
-          </div>
-        )}
-        {/* Splash on top, slides up */}
         <div style={{
           position:"absolute",inset:0,
           animation: splashSliding ? "slideUp 0.6s cubic-bezier(0.4,0,0.2,1) forwards" : "none",
           zIndex:10,
-          pointerEvents: splashSliding ? "none" : "auto",
+          pointerEvents:"none",
         }}>
           <SplashScreen />
         </div>
