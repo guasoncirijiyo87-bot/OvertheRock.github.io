@@ -1938,9 +1938,12 @@ export default function App() {
         }
       }
       setCulto(cultoData || []);
-      // Trigger splash slide up, reveal dashboard
       setSplashSliding(true);
-      setTimeout(() => { setLoading(false); setShowDash(true); }, 600);
+      setTimeout(() => {
+        setLoading(false);
+        setSplashSliding(false);
+        setShowDash(true);
+      }, 600);
     });
   }, []);
 
@@ -2003,7 +2006,7 @@ export default function App() {
     dbSaveCulto(updated);
   }
 
-  if (loading || splashSliding) {
+  if (loading) {
     return (
       <div style={{position:"fixed",inset:0,overflow:"hidden"}}>
         <style>{`
@@ -2015,8 +2018,6 @@ export default function App() {
         <div style={{
           position:"absolute",inset:0,
           animation: splashSliding ? "slideUp 0.6s cubic-bezier(0.4,0,0.2,1) forwards" : "none",
-          zIndex:10,
-          pointerEvents:"none",
         }}>
           <SplashScreen />
         </div>
