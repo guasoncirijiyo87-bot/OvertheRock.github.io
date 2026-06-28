@@ -1674,7 +1674,7 @@ function Dashboard({ songs, culto, onSelectSong, onSetlist, onEdit, onRevokeAdmi
       <div style={{textAlign:"center", padding:"28px 20px 16px"}}>
         <div style={{
           fontFamily:"'Barlow Condensed',sans-serif",
-          fontSize:42, fontWeight:800, letterSpacing:"0.06em",
+          fontSize:"clamp(24px, 7vw, 42px)", fontWeight:800, letterSpacing:"0.06em",
           color:textCol,
           textShadow:`0 0 30px ${textCol}44`,
           lineHeight:1,
@@ -1822,7 +1822,6 @@ function SplashScreen() {
         .splash-title { animation: fadeUp 0.7s ease both; }
         .splash-sub   { animation: fadeUp 0.7s 0.2s ease both; }
         .splash-scene { animation: fadeUp 0.8s 0.3s ease both; }
-        .splash-fig   { animation: jumpFig 1.8s ease-in-out infinite; transform-origin: 345px 320px; }
         .splash-loader{ animation: pulse 0.9s ease-in-out infinite alternate; }
       `}</style>
 
@@ -1838,13 +1837,13 @@ function SplashScreen() {
         </svg>
 
         <div style={{
-          fontSize:52, fontWeight:800, letterSpacing:"0.18em",
+          fontSize:"clamp(32px, 8vw, 52px)", fontWeight:800, letterSpacing:"0.18em",
           color:textCol, lineHeight:1, marginTop:8,
           textShadow:`0 0 30px ${textCol}55`,
         }}>ON THE</div>
 
         <div style={{
-          fontSize:130, fontWeight:800, letterSpacing:"0.06em",
+          fontSize:"clamp(72px, 22vw, 130px)", fontWeight:800, letterSpacing:"0.06em",
           color:textCol, lineHeight:0.9,
           textShadow:`0 0 60px ${textCol}44, 0 4px 8px rgba(0,0,0,0.3)`,
         }}>ROCK</div>
@@ -1858,7 +1857,7 @@ function SplashScreen() {
 
       {/* ── MIDDLE: Rock + figure scene ── */}
       <div className="splash-scene" style={{flex:1, display:"flex", alignItems:"flex-end", justifyContent:"center"}}>
-        <svg width="700" height="380" viewBox="0 0 700 380" style={{overflow:"visible"}}>
+        <svg width="100%" height="320" viewBox="0 0 700 380" preserveAspectRatio="xMidYMax meet" style={{overflow:"visible", maxWidth:700}}>
           {/* Sea lines */}
           {[0,1,2,3,4].map(i=>(
             <line key={i}
@@ -1876,35 +1875,6 @@ function SplashScreen() {
           <line x1="210" y1="258" x2="230" y2="228" stroke={accent} strokeOpacity={0.3} strokeWidth={3}/>
           <line x1="450" y1="232" x2="480" y2="205" stroke={accent} strokeOpacity={0.25} strokeWidth={2}/>
 
-          {/* Figure — jumping musician */}
-          <g className="splash-fig" fill={textCol} fillOpacity={0.92}>
-            {/* Head */}
-            <circle cx="345" cy="58" r="28"/>
-            {/* Torso */}
-            <rect x="320" y="88" width="50" height="80" rx="10"/>
-            {/* Arms raised */}
-            <line x1="323" y1="105" x2="275" y2="55"  stroke={textCol} strokeWidth="20" strokeLinecap="round"/>
-            <line x1="275" y1="55"  x2="255" y2="30"  stroke={textCol} strokeWidth="18" strokeLinecap="round"/>
-            <circle cx="255" cy="30" r="14"/>
-            <line x1="367" y1="105" x2="415" y2="52"  stroke={textCol} strokeWidth="20" strokeLinecap="round"/>
-            <line x1="415" y1="52"  x2="438" y2="26"  stroke={textCol} strokeWidth="18" strokeLinecap="round"/>
-            <circle cx="438" cy="26" r="14"/>
-            {/* Legs — jump pose */}
-            <line x1="333" y1="168" x2="305" y2="208" stroke={textCol} strokeWidth="22" strokeLinecap="round"/>
-            <line x1="305" y1="208" x2="288" y2="238" stroke={textCol} strokeWidth="20" strokeLinecap="round"/>
-            <ellipse cx="288" cy="238" rx="12" ry="9"/>
-            <line x1="357" y1="168" x2="388" y2="210" stroke={textCol} strokeWidth="22" strokeLinecap="round"/>
-            <line x1="388" y1="210" x2="404" y2="242" stroke={textCol} strokeWidth="20" strokeLinecap="round"/>
-            <ellipse cx="404" cy="242" rx="12" ry="9"/>
-          </g>
-
-          {/* Motion lines */}
-          {[[460,100,30],[468,130,20],[455,72,22]].map(([x,y,l],i)=>(
-            <line key={i} x1={x} y1={y} x2={x+l} y2={y} stroke={textCol} strokeOpacity={0.4} strokeWidth={4} strokeLinecap="round"/>
-          ))}
-          {[[230,95,28],[222,125,18]].map(([x,y,l],i)=>(
-            <line key={i} x1={x} y1={y} x2={x-l} y2={y} stroke={textCol} strokeOpacity={0.4} strokeWidth={4} strokeLinecap="round"/>
-          ))}
         </svg>
       </div>
 
@@ -2123,7 +2093,7 @@ export default function App() {
       culto={culto}
       onSelectSong={handleSelectSong}
       onEdit={isAdmin ? () => setMode("edit") : null}
-      onSetlist={() => setMode("setlist")}
+      onSetlist={() => { setShowDash(false); setMode("setlist"); }}
       onRevokeAdmin={isAdmin ? handleRevokeAdmin : null}
       syncStatus={syncStatus}
       appName={APP_NAME}
