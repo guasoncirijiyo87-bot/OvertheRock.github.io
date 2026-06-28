@@ -2030,6 +2030,7 @@ export default function App() {
           position:"absolute",inset:0,
           animation: splashSliding ? "slideUp 0.6s cubic-bezier(0.4,0,0.2,1) forwards" : "none",
           zIndex:10,
+          pointerEvents: splashSliding ? "none" : "auto",
         }}>
           <SplashScreen />
         </div>
